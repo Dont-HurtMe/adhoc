@@ -1,0 +1,79 @@
+services:
+    adhoc-notebook:
+        container_name: ${PROJECT_NAME}-adhoc-jupyter
+        build: 
+            context: ./adhoc
+        command: sh /jupyter/run-jupyter.sh
+        volumes:
+            - ./adhoc:/jupyter
+        ports:
+            - 8881:8888
+        env_file:
+            - .env
+
+    redis:
+        container_name: redis-adhoc
+        image: redis/redis-stack-server:6.2.6-v7
+        volumes:
+            - redis_db:/data
+        ports:
+            - 6379:6379 
+        env_file:
+            - .env
+
+    redis-insight:
+        container_name: redis-insight-adhoc
+        image: redislabs/redisinsight:1.13.1
+        env_file:
+            - .env
+        ports:
+            - 8001:8001
+
+    ollama:
+        image: ollama/ollama:latest
+        ports:
+            - 11434:11434
+        volumes:
+            - .:/code
+            - ./ollama/ollama:/root/.ollama
+        container_name: ollama
+        pull_policy: always
+        tty: true
+        restart: unless-stopped
+        environment:
+            - OLLAMA_KEEP_ALIVE=24h
+            - OLLAMA_HOST=0.0.0.0
+        networks:
+            - ollama-docker
+        mem_limit: 6g
+
+    open-webui:
+        image: ghcr.io/open-webui/open-webui:main
+        container_name: ollama-webui
+        volumes:
+            - ./ollama/ollama-webui:/app/backend/data
+        depends_on:
+            - ollama
+        ports:
+            - 8080:8080
+        environment:
+            - OLLAMA_BASE_URLS=http://ollama:11434
+            - ENV=dev
+            - WEBUI_AUTH=False
+            - WEBUI_NAME=Chat
+            - WEBUI_URL=http://localhost:8080
+            - WEBUI_SECRET_KEY=t0p-s3cr3t
+        extra_hosts:
+            - host.docker.internal:host-gateway
+        restart: unless-stopped
+        networks:
+            - ollama-docker
+    
+volumes:
+    redis_db: {}
+    ollama: {}
+    open-webui: {}
+
+networks:
+    ollama-docker:
+        external: false
